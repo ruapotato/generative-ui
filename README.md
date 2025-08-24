@@ -29,7 +29,7 @@ Follow these steps to get the project running on your local machine. This guide 
 ### Step 2: Clone the Repository
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/ruapotato/generative-ui
 cd generative-ui
 ```
 
@@ -46,14 +46,7 @@ source .venv/bin/activate
 ```
 
 ### Step 4: Install Dependencies
-
-Install the required Python packages using pip.
-
-```bash
-pip install -r requirements.txt
-```
-
-*(Note: You will need to create a `requirements.txt` file containing `Flask` and `requests`)*
+pip install flask requests
 
 ### Step 5: Prepare Ollama
 
