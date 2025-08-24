@@ -1,6 +1,6 @@
 # Generative UI with Flask and Ollama
 
-This project is a web-based application that demonstrates how to build a real-time, generative user interface using a Python Flask backend and a locally running Ollama language model. Users can type natural language commands to dynamically add, update, or remove UI elements on the page.
+This project is a web-based application that demonstrates how to build a real-time, AI-driven user interface using a Python Flask backend and a locally running Ollama language model. Users can type natural language commands to dynamically add, update, or remove UI elements. Furthermore, the application listens to user interactions with these elements (like button clicks), sending the context of the interaction back to the language model to generate further UI modifications. This creates a fully interactive experience where the LLM acts as both the UI generator and the event-handling logic.
 
 ## Features
 
