@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative UI with Flask & Ollama</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .ui-element { transition: all 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans text-gray-200">
+
+    <header class="bg-gray-800 shadow-md p-4">
+        <h1 class="text-2xl font-bold text-white text-center">Generative UI</h1>
+        <p class="text-center text-gray-400">Type a command to modify the UI in real-time.</p>
+    </header>
+
+    <main class="flex-grow flex flex-col md:flex-row p-4 gap-4">
+        <div class="md:w-2/3 bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700">
+            <h2 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Live UI Preview</h2>
+            <div id="ui-container" class="space-y-4">
+                <div id="greeting" class="ui-element bg-gray-700 p-4 rounded-md">
+                    <p class="text-lg">Welcome, David! Start by typing a command.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="md:w-1/3 flex flex-col gap-4">
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4">Controls</h2>
+                <form id="prompt-form" class="flex flex-col gap-4">
+                    <div>
+                        <label for="model-select" class="block text-sm font-medium text-gray-300 mb-1">Select Model</label>
+                        <select id="model-select" class="w-full bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option>Loading models...</option>
+                        </select>
+                    </div>
+
+                    <input type="text" id="prompt-input" placeholder="e.g., add a button named 'submit'"
+                           class="w-full bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button type="submit"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out">
+                        Generate
+                    </button>
+                </form>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex-grow">
+                <h2 class="text-xl font-semibold mb-4">Current UI State (JSON)</h2>
+                <pre id="ui-state-viewer" class="bg-gray-900 rounded-md p-4 text-sm text-yellow-300 overflow-auto h-64"></pre>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const uiContainer = document.getElementById('ui-container');
+            const promptForm = document.getElementById('prompt-form');
+            const promptInput = document.getElementById('prompt-input');
+            const stateViewer = document.getElementById('ui-state-viewer');
+            const modelSelect = document.getElementById('model-select');
+
+            let uiState = [
+                { id: 'greeting', type: 'div', props: { text: 'Welcome, David! Start by typing a command.' } }
+            ];
+
+            const updateStateViewer = () => {
+                stateViewer.textContent = JSON.stringify(uiState, null, 2);
+            };
+
+            const populateModels = async () => {
+                try {
+                    const response = await fetch('/api/models');
+                    const models = await response.json();
+                    modelSelect.innerHTML = '';
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        modelSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    modelSelect.innerHTML = '<option>Error loading models</option>';
+                    console.error('Failed to fetch models:', error);
+                }
+            };
+            
+            populateModels();
+            updateStateViewer();
+
+            const eventSource = new EventSource('/api/stream');
+
+            eventSource.onmessage = (event) => {
+                const command = JSON.parse(event.data);
+                switch (command.action) {
+                    case 'add': addComponent(command.payload); break;
+                    case 'update': updateComponent(command.payload); break;
+                    case 'delete': deleteComponent(command.payload); break;
+                    case 'error': alert(`Error: ${command.payload.message}`); break;
+                }
+                updateStateViewer();
+            };
+
+            // --- **FIX: The correct implementation for addComponent is now here.** ---
+            const addComponent = (payload) => {
+                if (!payload || !payload.type || !payload.id || document.getElementById(payload.id)) return;
+                let el;
+                switch (payload.type) {
+                    case 'button':
+                        el = document.createElement('button');
+                        el.textContent = payload.props?.text || 'Button';
+                        el.className = 'ui-element bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition';
+                        break;
+                    case 'input':
+                        el = document.createElement('input');
+                        el.type = 'text';
+                        el.placeholder = payload.props?.placeholder || 'Enter text...';
+                        el.className = 'ui-element w-full bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white';
+                        break;
+                    case 'select':
+                        el = document.createElement('select');
+                        el.className = 'ui-element w-full bg-gray-700 border border-gray-600 rounded-md px-4 py-2 text-white';
+                        (payload.props?.options || []).forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt;
+                            option.textContent = opt;
+                            el.appendChild(option);
+                        });
+                        break;
+                    default:
+                        el = document.createElement('div');
+                        el.textContent = payload.props?.text || 'New Element';
+                        el.className = 'ui-element bg-gray-700 p-4 rounded-md';
+                        break;
+                }
+                el.id = payload.id;
+                uiContainer.appendChild(el);
+                uiState.push(payload);
+            };
+
+            // --- **FIX: The correct implementation for updateComponent is now here.** ---
+            const updateComponent = (payload) => {
+                const element = document.getElementById(payload.id);
+                const stateElement = uiState.find(el => el.id === payload.id);
+                if (element && stateElement) {
+                    if (payload.props.text !== undefined) element.textContent = payload.props.text;
+                    if (payload.props.placeholder !== undefined) element.placeholder = payload.props.placeholder;
+                    Object.assign(stateElement.props, payload.props);
+                }
+            };
+
+            // --- **FIX: The correct implementation for deleteComponent is now here.** ---
+            const deleteComponent = (payload) => {
+                const element = document.getElementById(payload.id);
+                if (element) element.remove();
+                uiState = uiState.filter(el => el.id !== payload.id);
+            };
+
+            promptForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const prompt = promptInput.value.trim();
+                const model = modelSelect.value;
+                if (!prompt || !model) return;
+
+                await fetch('/api/prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, uiState, model }),
+                });
+                promptInput.value = '';
+            });
+
+            // --- **FIX: Removed the redundant block of code that was here.** ---
+        });
+    </script>
+</body>
+</html>
