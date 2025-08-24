@@ -138,18 +138,25 @@
                 uiState.push(payload);
             };
 
-            // --- **FIX: The correct implementation for updateComponent is now here.** ---
             const updateComponent = (payload) => {
                 const element = document.getElementById(payload.id);
                 const stateElement = uiState.find(el => el.id === payload.id);
                 if (element && stateElement) {
                     if (payload.props.text !== undefined) element.textContent = payload.props.text;
                     if (payload.props.placeholder !== undefined) element.placeholder = payload.props.placeholder;
+                    if (payload.props.options !== undefined && element.tagName === 'SELECT') {
+                        element.innerHTML = '';
+                        payload.props.options.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt;
+                            option.textContent = opt;
+                            element.appendChild(option);
+                        });
+                    }
                     Object.assign(stateElement.props, payload.props);
                 }
             };
-
-            // --- **FIX: The correct implementation for deleteComponent is now here.** ---
+            
             const deleteComponent = (payload) => {
                 const element = document.getElementById(payload.id);
                 if (element) element.remove();
@@ -170,7 +177,41 @@
                 promptInput.value = '';
             });
 
-            // --- **FIX: Removed the redundant block of code that was here.** ---
+            // --- **NEW: Event listener for UI interactions** ---
+            uiContainer.addEventListener('click', async (e) => {
+                const targetElement = e.target.closest('.ui-element');
+                if (!targetElement || !targetElement.id) return;
+
+                // We only care about clicks on buttons for now
+                if (targetElement.tagName !== 'BUTTON') return;
+
+                e.preventDefault();
+
+                const interactionData = {
+                    id: targetElement.id,
+                    event: 'click',
+                    values: {}
+                };
+                
+                // Gather values from all input/select elements
+                uiState.forEach(el => {
+                    if (el.type === 'input' || el.type === 'select') {
+                        const domEl = document.getElementById(el.id);
+                        if (domEl) {
+                            interactionData.values[el.id] = domEl.value;
+                        }
+                    }
+                });
+
+                const model = modelSelect.value;
+                if (!model) return;
+
+                await fetch('/api/interaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interactionData, uiState, model }),
+                });
+            });
         });
     </script>
 </body>

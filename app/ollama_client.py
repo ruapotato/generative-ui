@@ -96,3 +96,64 @@ Assistant:
         return {"action": "error", "payload": {"message": f"Invalid JSON from LLM: {e}. Raw response: '{raw_response}'"}}
     except Exception as e:
         return {"action": "error", "payload": {"message": f"An unknown error occurred: {e}"}}
+
+def get_ui_update_from_interaction(interaction_data: dict, current_ui_state: list, model_name: str) -> dict:
+    """
+    Generates a UI update command based on a user interaction with a UI element.
+    """
+    OLLAMA_MODEL = model_name or DEFAULT_OLLAMA_MODEL
+
+    full_prompt = f"""
+You are an expert AI assistant that generates UI modifications in response to user interactions.
+A user performed an action on a UI element. Your goal is to generate a single, structured JSON command to update the UI accordingly.
+You will be given details of the interaction and the current state of the UI, including the values of all input fields.
+You MUST respond with ONLY a single JSON object describing the change. Do NOT add any explanatory text.
+
+The JSON object must have "action" and "payload" keys, following the same format as before.
+
+INTERACTION DETAILS:
+- Interacted Element ID: {interaction_data.get('id')}
+- Event Type: {interaction_data.get('event')}
+- Current values of all inputs: {json.dumps(interaction_data.get('values'))}
+
+CURRENT UI STATE: {json.dumps(current_ui_state)}
+
+Based on this user interaction and the current state, determine the appropriate UI change.
+For example, if a user typed "apple" into an input with id "new_item_input" and clicked a button with id "add_btn", you might add "apple" to a dropdown list.
+
+Assistant:
+"""
+
+    try:
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": full_prompt,
+            "stream": False,
+        }
+
+        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=60)
+        response.raise_for_status()
+
+        response_data = response.json()
+        message_content = response_data.get("response", "")
+
+        print("--- RAW OLLAMA INTERACTION RESPONSE ---")
+        print(message_content)
+        print("---------------------------------------")
+
+        json_start = message_content.find('{')
+        json_end = message_content.rfind('}')
+
+        if json_start != -1 and json_end != -1:
+            json_str = message_content[json_start:json_end+1]
+            return json.loads(json_str)
+        else:
+            raise json.JSONDecodeError("No valid JSON object found in the model's response.", message_content, 0)
+
+    except requests.exceptions.RequestException as e:
+        return {"action": "error", "payload": {"message": f"Could not connect to Ollama: {e}"}}
+    except json.JSONDecodeError as e:
+        raw_response = locals().get('message_content', 'No response content captured.')
+        return {"action": "error", "payload": {"message": f"Invalid JSON from LLM: {e}. Raw response: '{raw_response}'"}}
+    except Exception as e:
+        return {"action": "error", "payload": {"message": f"An unknown error occurred: {e}"}}

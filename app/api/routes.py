@@ -1,7 +1,7 @@
 # app/api/routes.py
 from flask import Blueprint, request, Response, current_app, jsonify
 import json
-from ..ollama_client import get_ui_update, get_available_models 
+from ..ollama_client import get_ui_update, get_available_models, get_ui_update_from_interaction
 import time
 import queue
 
@@ -54,6 +54,29 @@ def handle_prompt():
     print(ui_update_command)
     print("--------------------------")
     # --- **END DEBUGGING** ---
+
+    current_app.sse_manager.publish(ui_update_command)
+
+    return jsonify({"status": "ok"}), 200
+
+@api.route('/interaction', methods=['POST'])
+def handle_interaction():
+    """
+    Receives user interaction data from the frontend and asks the LLM for a UI update.
+    """
+    data = request.get_json()
+    if not data or 'interactionData' not in data or 'uiState' not in data or 'model' not in data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    interaction_data = data['interactionData']
+    ui_state = data['uiState']
+    model_name = data['model']
+
+    ui_update_command = get_ui_update_from_interaction(interaction_data, ui_state, model_name)
+
+    print(f"--- INTERACTION COMMAND TO PUBLISH ---")
+    print(ui_update_command)
+    print("------------------------------------")
 
     current_app.sse_manager.publish(ui_update_command)
 
